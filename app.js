@@ -1,219 +1,173 @@
-/* Walkie Prototype
- * - Leaflet map + live geotracking
- * - Haversine distance, metrics, history (localStorage)
- * - Health Index score (0-100) + badge
- */
+/* Walkie – prettier UI + robust images + same features
+   - Leaflet map tracking
+   - Haversine distance, speed, pace
+   - History in localStorage
+   - Health index (0..100) with badge
+*/
 
-const qs = (s, el = document) => el.querySelector(s);
-const qsa = (s, el = document) => [...el.querySelectorAll(s)];
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 
-// Tabs
-qsa(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    qsa(".tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    qsa("section.view").forEach(v => v.classList.remove("active"));
-    const id = `view-${btn.dataset.tab}`;
-    qs("#" + id).classList.add("active");
-  });
-});
+// ---------- Tabs ----------
+$$(".tab").forEach(t => t.addEventListener("click", () => {
+  $$(".tab").forEach(b => b.classList.remove("active"));
+  t.classList.add("active");
+  $$(".section").forEach(s => s.classList.remove("active"));
+  $("#" + t.dataset.target).classList.add("active");
+}));
 
-// Persistent settings
+// ---------- Store ----------
 const store = {
-  get(k, d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{ return d }},
-  set(k, v){localStorage.setItem(k, JSON.stringify(v))}
+  get(k, d){ try{ const v = localStorage.getItem(k); return v?JSON.parse(v):d } catch { return d } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)) }
 };
 
-// Goal handling
-const goalInput = qs("#goalKm");
+// ---------- Goal UI ----------
+const goalInput = $("#goalKm");
 goalInput.value = store.get("goalKm", 2.0);
-qs("#dailyGoalLabel").textContent = `Goal: ${Number(goalInput.value).toFixed(1)} km`;
-goalInput.addEventListener("input", () => {
-  store.set("goalKm", Number(goalInput.value));
-  qs("#dailyGoalLabel").textContent = `Goal: ${Number(goalInput.value).toFixed(1)} km`;
-});
+const setGoalLabel = () => $("#goalLabel").textContent = `Goal: ${Number(goalInput.value).toFixed(1)} km`;
+setGoalLabel();
+goalInput.addEventListener("input", () => { store.set("goalKm", Number(goalInput.value)); setGoalLabel(); });
 
-// Map setup
-let map, userMarker, pathLine, watchId = null, path = [], startTime = null, distanceKm = 0;
+// ---------- Leaflet Map ----------
+let map, userMarker, pathLine, watchId=null, path=[], startTime=null, km=0;
 function initMap(){
-  map = L.map("map", { zoomControl: true }).setView([45.4642, 9.19], 13);
+  map = L.map("map", { zoomControl:true }).setView([45.4642, 9.19], 13);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
-  pathLine = L.polyline([], { weight: 5 }).addTo(map);
+  pathLine = L.polyline([], { weight:5 }).addTo(map);
 }
 document.addEventListener("DOMContentLoaded", initMap);
 
-// Helpers
-function haversine(a, b){
-  const toRad = d => d * Math.PI / 180;
-  const R = 6371; // km
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
+// ---------- Helpers ----------
+const toRad = d => d * Math.PI / 180;
+function haversine(a,b){
+  const R=6371, dLat=toRad(b.lat-a.lat), dLon=toRad(b.lng-a.lng);
+  const lat1=toRad(a.lat), lat2=toRad(b.lat);
   const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(h)); // km
+  return 2*R*Math.asin(Math.sqrt(h));
 }
-const fmtTime = (sec) => {
+const fmtMS = sec => {
   const m = Math.floor(sec/60).toString().padStart(2,"0");
   const s = Math.floor(sec%60).toString().padStart(2,"0");
   return `${m}:${s}`;
 };
+const avgSpeed = (km, sec) => sec>0 ? km/(sec/3600) : 0;
+const kmPace = (km, sec) => (km>0 ? (sec/km) : null); // s per km
 
-// Walk controls
-const btnStart = qs("#btnStart");
-const btnStop = qs("#btnStop");
-const btnRecenter = qs("#btnRecenter");
-const mDistance = qs("#mDistance");
-const mDuration = qs("#mDuration");
-const mPace = qs("#mPace");
+// ---------- Controls ----------
+const mDist=$("#mDist"), mTime=$("#mTime"), mSpeed=$("#mSpeed"), mPace=$("#mPace"), mGoal=$("#mGoal"), mCount=$("#mCount");
+const startBtn=$("#startBtn"), stopBtn=$("#stopBtn"), centerBtn=$("#centerBtn");
 
-btnStart.addEventListener("click", async () => {
-  if (!navigator.geolocation) { alert("Geolocalizzazione non supportata"); return; }
-
-  // reset session
-  path = []; distanceKm = 0; startTime = Date.now();
-  pathLine.setLatLngs([]);
-
-  btnStart.disabled = true; btnStop.disabled = false;
+startBtn.addEventListener("click", () => {
+  if (!navigator.geolocation){ alert("Geolocalizzazione non supportata"); return; }
+  path=[]; km=0; startTime=Date.now(); pathLine.setLatLngs([]);
+  startBtn.disabled=true; stopBtn.disabled=false;
 
   watchId = navigator.geolocation.watchPosition(onPos, onGeoError, {
     enableHighAccuracy: true, maximumAge: 1000, timeout: 10000
   });
 });
 
-btnStop.addEventListener("click", () => {
-  if (watchId != null) navigator.geolocation.clearWatch(watchId);
-  watchId = null; btnStart.disabled = false; btnStop.disabled = true;
+stopBtn.addEventListener("click", () => {
+  if (watchId!=null) navigator.geolocation.clearWatch(watchId);
+  watchId=null; startBtn.disabled=false; stopBtn.disabled=true;
 
-  const seconds = (Date.now() - startTime) / 1000;
-  const history = store.get("history", []);
-  history.unshift({
-    date: new Date().toISOString(),
-    km: Number(distanceKm.toFixed(2)),
-    sec: Math.round(seconds),
-    avg: computeAvgSpeed(distanceKm, seconds)
-  });
-  store.set("history", history);
-  refreshHistory();
+  const sec = (Date.now()-startTime)/1000;
+  const hist = store.get("history", []);
+  hist.unshift({ date:new Date().toISOString(), km:Number(km.toFixed(2)), sec:Math.round(sec), avg:avgSpeed(km,sec) });
+  store.set("history", hist);
+  renderHistory();
+  mCount.textContent = hist.length;
 });
 
-btnRecenter.addEventListener("click", () => {
+centerBtn.addEventListener("click", () => {
   if (!path.length) return;
   const last = path[path.length-1];
   map.setView([last.lat, last.lng], 17);
 });
 
-function onPos(pos){
-  const { latitude, longitude } = pos.coords;
-  const point = { lat: latitude, lng: longitude };
-  if (!userMarker){
-    userMarker = L.marker([point.lat, point.lng]).addTo(map);
-    map.setView([point.lat, point.lng], 17);
-  } else userMarker.setLatLng([point.lat, point.lng]);
+function onPos(p){
+  const cur = { lat: p.coords.latitude, lng: p.coords.longitude };
+  if (!userMarker){ userMarker = L.marker([cur.lat,cur.lng]).addTo(map); map.setView([cur.lat,cur.lng], 17); }
+  else userMarker.setLatLng([cur.lat,cur.lng]);
 
-  // update path
-  if (path.length){
-    const prev = path[path.length-1];
-    const inc = haversine(prev, point);
-    distanceKm += inc;
-  }
-  path.push(point);
-  pathLine.addLatLng([point.lat, point.lng]);
+  if (path.length){ km += haversine(path[path.length-1], cur); }
+  path.push(cur);
+  pathLine.addLatLng([cur.lat,cur.lng]);
 
-  const seconds = (Date.now() - startTime) / 1000;
-  mDistance.textContent = `${distanceKm.toFixed(2)} km`;
-  mDuration.textContent = fmtTime(seconds);
-  mPace.textContent = `${computeAvgSpeed(distanceKm, seconds).toFixed(1)} km/h`;
+  const sec = (Date.now()-startTime)/1000;
+  mDist.textContent = `${km.toFixed(2)} km`;
+  mTime.textContent = fmtMS(sec);
+  mSpeed.textContent = `${avgSpeed(km,sec).toFixed(1)} km/h`;
+  const pace = kmPace(km, sec);
+  mPace.textContent = pace ? `${Math.floor(pace/60).toString().padStart(2,"0")}:${Math.floor(pace%60).toString().padStart(2,"0")} /km` : "—";
 
-  // goal visual (simple)
   const goal = Number(store.get("goalKm", 2.0));
-  if (distanceKm >= goal) {
-    mDistance.parentElement.style.outline = "2px solid var(--accent)";
-  } else {
-    mDistance.parentElement.style.outline = "none";
-  }
+  const pct = Math.min(100, Math.round((km/goal)*100));
+  mGoal.textContent = `${pct}%`;
 }
 
 function onGeoError(err){
   alert("GPS errore: " + err.message);
-  btnStart.disabled = false; btnStop.disabled = true;
-}
-function computeAvgSpeed(km, seconds){
-  if (seconds <= 0) return 0;
-  return km / (seconds/3600);
+  startBtn.disabled=false; stopBtn.disabled=true;
 }
 
-// History rendering
-function refreshHistory(){
-  const list = qs("#historyList");
-  const history = store.get("history", []);
-  if (!history.length){ list.innerHTML = `<div class="muted">Nessuna passeggiata salvata.</div>`; return; }
+// ---------- History ----------
+function renderHistory(){
+  const list = $("#history");
+  const hist = store.get("history", []);
+  if (!hist.length){ list.innerHTML = `<div class="muted">Nessuna passeggiata salvata.</div>`; return; }
   list.innerHTML = "";
-  history.slice(0, 25).forEach((h, idx) => {
-    const div = document.createElement("div");
+  hist.slice(0,25).forEach((h,i)=>{
     const d = new Date(h.date);
-    div.className = "history-item";
-    div.innerHTML = `
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `
       <div>
-        <div><strong>${h.km.toFixed(2)} km</strong> · ${fmtTime(h.sec)} · ${h.avg.toFixed(1)} km/h</div>
+        <div><strong>${h.km.toFixed(2)} km</strong> · ${fmtMS(h.sec)} · ${h.avg.toFixed(1)} km/h</div>
         <div class="muted">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</div>
       </div>
-      <div class="muted">#${idx+1}</div>
+      <div class="muted">#${i+1}</div>
     `;
-    list.appendChild(div);
+    list.appendChild(el);
   });
+  mCount.textContent = hist.length;
 }
-document.addEventListener("DOMContentLoaded", refreshHistory);
+document.addEventListener("DOMContentLoaded", renderHistory);
 
-// HEALTH INDEX
-/* Heuristic model (range 0..100)
- * Inputs: age(yrs), weight(kg), mins activity/day, BCS(1..9), sleep hours, resting HR
- * - Ideal mins: 30..90, best ~60
- * - Ideal BCS: 4..5
- * - Sleep ideal: 10..14
- * - Resting HR small/medium dogs ~60-100 (we normalize 60..90 as best)
- */
+// ---------- Health Index ----------
+function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+function gaussian(x, mu, sigma){ return Math.exp(-0.5 * ((x-mu)/sigma)**2); }
+
 function healthScore({age, weight, mins, bcs, sleep, hr}){
-  // Normalize helpers -> 0..1
-  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const gaussian = (x, mu, sigma) => Math.exp(-0.5 * ((x-mu)/sigma)**2);
-
-  const act = clamp( gaussian(mins, 60, 20), 0, 1);        // best around 60 min
-  const cond = clamp( gaussian(bcs, 4.5, 1.2), 0, 1);      // best around 4-5
-  const slp = clamp( gaussian(sleep, 12, 2.5), 0, 1);      // best around 12h
-  const pulse = clamp( gaussian(hr, 80, 12), 0, 1);        // best around 80 bpm
-
-  // Age factor: younger slightly better until 6y, then gentle decline
-  const ageF = clamp( 1 - Math.max(0, (age - 6)) * 0.05, 0.6, 1);
-
-  // Weight penalty vs. rough ideal weight for size category (very crude)
-  const ideal = weight; // assume given weight already near ideal; keep neutral
-  const wF = clamp( gaussian(weight, ideal, ideal*0.12), 0.6, 1);
-
-  const score = (act*0.28 + cond*0.28 + slp*0.16 + pulse*0.18 + ageF*0.05 + wF*0.05) * 100;
-  return clamp( Math.round(score), 0, 100 );
+  const act = clamp( gaussian(mins, 60, 20), 0, 1);
+  const cond = clamp( gaussian(bcs, 4.5, 1.2), 0, 1);
+  const slp = clamp( gaussian(sleep, 12, 2.5), 0, 1);
+  const pulse = clamp( gaussian(hr, 80, 12), 0, 1);
+  const ageF = clamp( 1 - Math.max(0, (age-6))*0.05, 0.6, 1);
+  const wF = 1; // neutro: non abbiamo "ideal weight" affidabile
+  return Math.round((act*0.30 + cond*0.28 + slp*0.16 + pulse*0.18 + ageF*0.08) * 100);
 }
-function healthLabel(score){
-  if (score >= 80) return {label:"Ottimo", img:"assets/images/happydog.png"};
-  if (score >= 60) return {label:"Buono", img:"assets/images/healtydog.png"};
-  return {label:"Attenzione", img:"assets/images/dogsection.png"};
+function badgeFor(score){
+  if (score>=80) return {img:"assets/images/happydog.png", label:"Ottimo"};
+  if (score>=60) return {img:"assets/images/healtydog.png", label:"Buono"};
+  return {img:"assets/images/dogsection.png", label:"Attenzione"};
 }
-qs("#btnHealth").addEventListener("click", () => {
+$("#calcBtn").addEventListener("click", ()=>{
   const payload = {
-    age: Number(qs("#age").value),
-    weight: Number(qs("#weight").value),
-    mins: Number(qs("#mins").value),
-    bcs: Number(qs("#bcs").value),
-    sleep: Number(qs("#sleep").value),
-    hr: Number(qs("#hr").value),
+    age:Number($("#age").value),
+    weight:Number($("#weight").value),
+    mins:Number($("#mins").value),
+    bcs:Number($("#bcs").value),
+    sleep:Number($("#sleep").value),
+    hr:Number($("#hr").value),
   };
   const s = healthScore(payload);
-  const {label, img} = healthLabel(s);
-  qs("#healthOut").innerHTML = `
-    <img src="${img}" alt="${label}" />
-    <div>
-      <div><strong>Punteggio Salute: ${s}/100</strong></div>
-      <div class="muted">${label}</div>
-    </div>
-  `;
+  const {img,label} = badgeFor(s);
+  $("#healthOut").innerHTML = `<img src="${img}" alt="${label}"><div><div><strong>Punteggio Salute: ${s}/100</strong></div><div class="muted">${label}</div></div>`;
+});
+
+// ---------- Images fallback (se un asset manca) ----------
+$$("img").forEach(img=>{
+  img.addEventListener("error", ()=>{ img.alt = (img.alt||"")+ " (asset mancante)"; img.style.opacity=".5"; });
 });

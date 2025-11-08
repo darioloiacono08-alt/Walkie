@@ -2,185 +2,235 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Walkie</title>
 
   <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-    defer
-  ></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+
+  <!-- Favicons optional -->
+  <link rel="preload" as="image" href="assets/images/logoapp.png">
+  <link rel="preload" as="image" href="assets/images/logotext.png">
 
   <style>
     :root{
-      --bg:#0f1419; --card:#111921; --muted:#8bd6cf; --accent:#15c3b9; --text:#e8f3f1; --warn:#ffb300;
+      --bg:#0b1217; --surface:#0f1720; --card:#111c26; --line:#16343a;
+      --brand:#19c6ba; --brand-2:#0aa595; --text:#e6f2f0; --muted:#9cd9d3; --danger:#3a171a;
+      --shadow: 0 6px 20px rgba(0,0,0,.35);
+      --radius: 18px;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      margin:0; color:var(--text); background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(25,198,186,.08), transparent 60%),
+        var(--bg);
+      font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
       display:flex; flex-direction:column;
     }
+
+    /* HEADER */
     header{
-      display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:#0c1015; border-bottom:1px solid #0c2020;
-      position:sticky; top:0; z-index:5;
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; gap:.7rem; padding: .8rem 1rem;
+      background: linear-gradient(180deg, #0b141a, #0b1217);
+      border-bottom:1px solid #0f2a2c;
     }
-    header img.logo{height:32px}
-    header img.logotext{height:24px; opacity:.9}
-    .pill{margin-left:auto; display:flex; align-items:center; gap:.4rem; background:var(--card); border:1px solid #163438; padding:.35rem .6rem; border-radius:999px; font-size:.9rem}
-    .pill img{height:18px}
-
-    main{flex:1; display:grid; grid-template-rows:auto 1fr}
-    nav.tabs{
-      display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem; padding:.5rem; background:#0c1319; border-bottom:1px solid #0c2020;
+    .brand{display:flex; align-items:center; gap:.5rem}
+    .brand img.logo{height:30px}
+    .brand img.text{height:20px; opacity:.95}
+    .goal{
+      margin-left:auto; display:flex; align-items:center; gap:.45rem;
+      padding:.35rem .6rem; border-radius:999px; background:rgba(25,198,186,.12);
+      border:1px solid #1b6a67; font-size:.9rem;
     }
-    .tab-btn{
-      display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.6rem; background:var(--card);
-      border:1px solid #163438; border-radius:16px; cursor:pointer; transition:transform .06s ease;
+    .goal img{height:18px}
+
+    /* CONTENT */
+    main{flex:1; padding: .75rem; padding-bottom: 76px; /* space for bottom bar */ }
+    .section{display:none}
+    .section.active{display:block}
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow: var(--shadow);
+      padding:.9rem;
     }
-    .tab-btn:hover{transform:translateY(-1px)}
-    .tab-btn.active{outline:2px solid var(--accent)}
-    .tab-btn img{height:22px}
 
-    section.view{display:none; height:100%}
-    section.view.active{display:block}
-
-    /* Walk view */
-    #map{height:55vh; border-radius:16px; border:1px solid #163438; overflow:hidden}
-    .walk-toolbar{display:flex; gap:.6rem; margin:.6rem 0}
+    /* MAP */
+    #map{height:55vh; border-radius:14px; overflow:hidden; border:1px solid var(--line)}
+    .toolbar{display:flex; gap:.55rem; margin:.65rem 0 .2rem}
     .btn{
-      display:flex; align-items:center; gap:.5rem; padding:.7rem 1rem; border-radius:14px; border:1px solid #163438; background:var(--card); cursor:pointer
+      display:flex; align-items:center; gap:.5rem; padding:.7rem 1rem; border-radius:14px;
+      background:var(--surface); border:1px solid var(--line); color:var(--text);
     }
     .btn img{height:22px}
-    .btn.primary{background:linear-gradient(180deg,#1bd1c5,#12a399); border-color:#0b6f69; color:#042; font-weight:700}
-    .btn.stop{background:#2a1717; border-color:#5a2d2d}
-    .metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem}
-    .metric{background:var(--card); border:1px solid #163438; border-radius:14px; padding:.75rem; text-align:center}
-    .metric .v{font-size:1.3rem; font-weight:700}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{
+      background:linear-gradient(180deg,var(--brand),var(--brand-2));
+      border-color:#0d7a72; color:#032d2a; font-weight:700;
+    }
+    .btn.stop{background:var(--danger); border-color:#5a2d2f; opacity:.9}
+    .metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:.55rem; margin-top:.4rem}
+    .metric{padding:.8rem; text-align:center; border-radius:14px; border:1px solid var(--line); background:var(--surface)}
+    .metric .v{font-size:1.35rem; font-weight:800}
 
-    /* Health view */
-    .card{background:var(--card); border:1px solid #163438; border-radius:16px; padding:1rem}
+    .center{display:flex; justify-content:center}
+    .hint{font-size:.9rem; opacity:.8}
+
+    /* HEALTH */
     .form{display:grid; gap:.6rem}
     .row{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
-    label{font-size:.9rem; opacity:.9}
+    label{font-size:.9rem; opacity:.95}
     input, select{
-      width:100%; padding:.6rem .7rem; border-radius:12px; border:1px solid #28494d; background:#0b1318; color:var(--text);
+      width:100%; padding:.6rem .7rem; border-radius:12px; background:#0a1319; color:var(--text);
+      border:1px solid #294a4e;
     }
-    .health-result{display:flex; align-items:center; gap:.8rem; margin-top:.8rem}
-    .health-result img{height:40px}
+    .result{display:flex; align-items:center; gap:.8rem; margin-top:.6rem}
+    .result img{height:42px}
 
-    /* History */
-    .history-list{display:grid; gap:.6rem}
-    .history-item{display:grid; grid-template-columns:1fr auto; gap:.6rem; align-items:center; padding:.7rem; border-radius:12px; border:1px solid #163438; background:var(--card)}
-    .muted{opacity:.7}
+    /* HISTORY */
+    .list{display:grid; gap:.6rem}
+    .item{display:grid; grid-template-columns:1fr auto; gap:.6rem; align-items:center;
+      padding:.7rem; border-radius:14px; border:1px solid var(--line); background:var(--surface)
+    }
+    .muted{opacity:.75}
 
-    footer{
-      padding:.7rem; text-align:center; font-size:.85rem; opacity:.7;
-      border-top:1px solid #0c2020; background:#0c1015;
+    /* BOTTOM NAV */
+    .bottom{
+      position:fixed; left:0; right:0; bottom:0; z-index:20; backdrop-filter: blur(10px);
+      padding:.5rem .6rem .7rem; background:rgba(6,10,14,.7); border-top:1px solid #0f2a2c;
+    }
+    .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem}
+    .tab{
+      display:flex; flex-direction:column; align-items:center; gap:.25rem;
+      padding:.5rem .3rem; border-radius:14px; background:transparent; border:1px solid transparent; color:var(--muted);
+    }
+    .tab.active{border-color:#1b6a67; background:rgba(25,198,186,.08); color:var(--text)}
+    .tab img{height:22px}
+    .tab span{font-size:.78rem}
+
+    /* Safe areas */
+    @supports (padding: max(0px)) {
+      .bottom { padding-bottom: max(.7rem, env(safe-area-inset-bottom)); }
+      header { padding-top: calc(.8rem + env(safe-area-inset-top) * .0); }
     }
 
-    .hint{font-size:.9rem; opacity:.8}
-    .center{display:flex; align-items:center; justify-content:center}
+    @media (min-width: 760px){
+      #map{height:58vh}
+      .metrics{grid-template-columns:repeat(6,1fr)}
+      .row{grid-template-columns:repeat(3,1fr)}
+    }
   </style>
 </head>
 <body>
   <header>
-    <img class="logo" src="assets/images/logoapp.png" alt="Walkie logo" />
-    <img class="logotext" src="assets/images/logotext.png" alt="Walkie" />
-    <div class="pill">
-      <img src="assets/images/dailygoal.png" alt="goal" />
-      <span id="dailyGoalLabel">Goal: 2.0 km</span>
+    <div class="brand">
+      <img class="logo" src="assets/images/logoapp.png" alt="Walkie logo"/>
+      <img class="text" src="assets/images/logotext.png" alt="Walkie"/>
+    </div>
+    <div class="goal" aria-live="polite">
+      <img src="assets/images/dailygoal.png" alt="" />
+      <span id="goalLabel">Goal: 2.0 km</span>
     </div>
   </header>
 
   <main>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="walk"><img src="assets/images/mapssection.png" alt="" />Passeggiata</button>
-      <button class="tab-btn" data-tab="health"><img src="assets/images/dogsection.png" alt="" />Salute</button>
-      <button class="tab-btn" data-tab="history"><img src="assets/images/trophy.png" alt="" />Storico</button>
-      <button class="tab-btn" data-tab="settings"><img src="assets/images/settings.png" alt="" />Impostazioni</button>
-    </nav>
-
-    <!-- WALK VIEW -->
-    <section id="view-walk" class="view active">
+    <!-- Passeggiata -->
+    <section id="s-walk" class="section active">
       <div class="card">
-        <div id="map"></div>
-        <div class="walk-toolbar">
-          <button id="btnStart" class="btn primary"><img src="assets/images/startwalk.png" alt="start" />Start</button>
-          <button id="btnStop" class="btn stop" disabled><img src="assets/images/stopwalk.png" alt="stop" />Stop</button>
-          <button id="btnRecenter" class="btn"><img src="assets/images/position.png" alt="pos" />Centra</button>
+        <div id="map" role="application" aria-label="Mappa passeggiata"></div>
+        <div class="toolbar">
+          <button id="startBtn" class="btn primary"><img src="assets/images/startwalk.png" alt="">Start</button>
+          <button id="stopBtn" class="btn stop" disabled><img src="assets/images/stopwalk.png" alt="">Stop</button>
+          <button id="centerBtn" class="btn"><img src="assets/images/position.png" alt="">Centra</button>
         </div>
+
         <div class="metrics">
-          <div class="metric"><div class="k">Distanza</div><div id="mDistance" class="v">0.00 km</div></div>
-          <div class="metric"><div class="k">Durata</div><div id="mDuration" class="v">00:00</div></div>
-          <div class="metric"><div class="k">Velocità</div><div id="mPace" class="v">0.0 km/h</div></div>
+          <div class="metric"><div class="k">Distanza</div><div id="mDist" class="v">0.00 km</div></div>
+          <div class="metric"><div class="k">Durata</div><div id="mTime" class="v">00:00</div></div>
+          <div class="metric"><div class="k">Velocità</div><div id="mSpeed" class="v">0.0 km/h</div></div>
+          <div class="metric"><div class="k">Media 1km</div><div id="mPace" class="v">—</div></div>
+          <div class="metric"><div class="k">Goal</div><div id="mGoal" class="v">0%</div></div>
+          <div class="metric"><div class="k">Sessioni</div><div id="mCount" class="v">0</div></div>
         </div>
-        <p class="hint">Suggerimento: avvia da esterno per una migliore precisione GPS.</p>
-      </div>
-      <div class="center" style="margin-top:10px;">
-        <img src="assets/images/walkingdog.png" alt="walking dog" style="height:56px; opacity:.9" />
+
+        <p class="center"><img src="assets/images/walkingdog.png" alt="" style="height:56px; opacity:.95"></p>
+        <p class="hint">Suggerimento: per precisione migliore, resta all’aperto e attendi il fix GPS.</p>
       </div>
     </section>
 
-    <!-- HEALTH VIEW -->
-    <section id="view-health" class="view">
+    <!-- Salute -->
+    <section id="s-health" class="section">
       <div class="card">
-        <h3>Indice di Salute</h3>
+        <h3 style="margin:0 0 .6rem">Indice di Salute</h3>
         <div class="form">
           <div class="row">
-            <label>Età (anni)<br/><input type="number" id="age" min="0" step="0.1" value="4"></label>
-            <label>Peso (kg)<br/><input type="number" id="weight" min="0" step="0.1" value="18"></label>
+            <label>Età (anni)<br><input id="age" type="number" min="0" step="0.1" value="4"></label>
+            <label>Peso (kg)<br><input id="weight" type="number" min="0" step="0.1" value="18"></label>
           </div>
           <div class="row">
-            <label>Attività giornaliera (min)<br/><input type="number" id="mins" min="0" step="1" value="45"></label>
-            <label>BCS (1=magro, 9=obeso)<br/>
+            <label>Attività giornaliera (min)<br><input id="mins" type="number" min="0" step="1" value="45"></label>
+            <label>BCS (1-9)<br>
               <select id="bcs">
-                <option value="3">3</option><option value="4">4</option>
-                <option value="5" selected>5</option>
-                <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                <option>3</option><option>4</option><option selected>5</option>
+                <option>6</option><option>7</option><option>8</option><option>9</option>
               </select>
             </label>
           </div>
           <div class="row">
-            <label>Riposo notturno (ore)<br/><input type="number" id="sleep" min="0" max="18" step="0.5" value="12"></label>
-            <label>Battito a riposo (bpm)<br/><input type="number" id="hr" min="30" max="180" step="1" value="70"></label>
+            <label>Riposo notturno (ore)<br><input id="sleep" type="number" min="0" max="20" step="0.5" value="12"></label>
+            <label>HR a riposo (bpm)<br><input id="hr" type="number" min="30" max="180" step="1" value="80"></label>
           </div>
-          <button id="btnHealth" class="btn primary" style="width:max-content">Calcola punteggio</button>
-          <div id="healthOut" class="health-result" aria-live="polite"></div>
+          <button id="calcBtn" class="btn primary" style="width:max-content">Calcola punteggio</button>
+          <div id="healthOut" class="result" aria-live="polite"></div>
         </div>
       </div>
     </section>
 
-    <!-- HISTORY VIEW -->
-    <section id="view-history" class="view">
+    <!-- Storico -->
+    <section id="s-history" class="section">
       <div class="card">
-        <h3>Storico passeggiate</h3>
-        <div id="historyList" class="history-list"></div>
+        <h3 style="margin:0 0 .6rem">Storico passeggiate</h3>
+        <div id="history" class="list"></div>
       </div>
     </section>
 
-    <!-- SETTINGS VIEW -->
-    <section id="view-settings" class="view">
+    <!-- Impostazioni -->
+    <section id="s-settings" class="section">
       <div class="card">
-        <h3>Impostazioni</h3>
+        <h3 style="margin:0 0 .6rem">Impostazioni</h3>
         <label>Goal giornaliero (km)
-          <input type="number" id="goalKm" min="0" step="0.1" value="2.0" />
+          <input id="goalKm" type="number" min="0" step="0.1" value="2.0" />
         </label>
-        <p class="muted">Il goal viene salvato in locale e usato nella vista passeggiata.</p>
+        <p class="muted">Il goal viene salvato in locale e mostra l’avanzamento nella schermata Passeggiata.</p>
       </div>
     </section>
   </main>
 
-  <footer>© Walkie — prototipo</footer>
+  <!-- Bottom navigation -->
+  <nav class="bottom" aria-label="Navigazione inferiore">
+    <div class="tabs">
+      <button class="tab active" data-target="s-walk">
+        <img src="assets/images/mapssection.png" alt=""><span>Passeggiata</span>
+      </button>
+      <button class="tab" data-target="s-health">
+        <img src="assets/images/dogsection.png" alt=""><span>Salute</span>
+      </button>
+      <button class="tab" data-target="s-history">
+        <img src="assets/images/trophy.png" alt=""><span>Storico</span>
+      </button>
+      <button class="tab" data-target="s-settings">
+        <img src="assets/images/settings.png" alt=""><span>Impostazioni</span>
+      </button>
+    </div>
+  </nav>
 
-  <script src="app.js" defer></script>
+  <script defer src="app.js"></script>
 </body>
 </html>
