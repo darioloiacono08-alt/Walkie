@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Walkie</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+    defer
+  ></script>
+
+  <style>
+    :root{
+      --bg:#0f1419; --card:#111921; --muted:#8bd6cf; --accent:#15c3b9; --text:#e8f3f1; --warn:#ffb300;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      display:flex; flex-direction:column;
+    }
+    header{
+      display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:#0c1015; border-bottom:1px solid #0c2020;
+      position:sticky; top:0; z-index:5;
+    }
+    header img.logo{height:32px}
+    header img.logotext{height:24px; opacity:.9}
+    .pill{margin-left:auto; display:flex; align-items:center; gap:.4rem; background:var(--card); border:1px solid #163438; padding:.35rem .6rem; border-radius:999px; font-size:.9rem}
+    .pill img{height:18px}
+
+    main{flex:1; display:grid; grid-template-rows:auto 1fr}
+    nav.tabs{
+      display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem; padding:.5rem; background:#0c1319; border-bottom:1px solid #0c2020;
+    }
+    .tab-btn{
+      display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.6rem; background:var(--card);
+      border:1px solid #163438; border-radius:16px; cursor:pointer; transition:transform .06s ease;
+    }
+    .tab-btn:hover{transform:translateY(-1px)}
+    .tab-btn.active{outline:2px solid var(--accent)}
+    .tab-btn img{height:22px}
+
+    section.view{display:none; height:100%}
+    section.view.active{display:block}
+
+    /* Walk view */
+    #map{height:55vh; border-radius:16px; border:1px solid #163438; overflow:hidden}
+    .walk-toolbar{display:flex; gap:.6rem; margin:.6rem 0}
+    .btn{
+      display:flex; align-items:center; gap:.5rem; padding:.7rem 1rem; border-radius:14px; border:1px solid #163438; background:var(--card); cursor:pointer
+    }
+    .btn img{height:22px}
+    .btn.primary{background:linear-gradient(180deg,#1bd1c5,#12a399); border-color:#0b6f69; color:#042; font-weight:700}
+    .btn.stop{background:#2a1717; border-color:#5a2d2d}
+    .metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem}
+    .metric{background:var(--card); border:1px solid #163438; border-radius:14px; padding:.75rem; text-align:center}
+    .metric .v{font-size:1.3rem; font-weight:700}
+
+    /* Health view */
+    .card{background:var(--card); border:1px solid #163438; border-radius:16px; padding:1rem}
+    .form{display:grid; gap:.6rem}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
+    label{font-size:.9rem; opacity:.9}
+    input, select{
+      width:100%; padding:.6rem .7rem; border-radius:12px; border:1px solid #28494d; background:#0b1318; color:var(--text);
+    }
+    .health-result{display:flex; align-items:center; gap:.8rem; margin-top:.8rem}
+    .health-result img{height:40px}
+
+    /* History */
+    .history-list{display:grid; gap:.6rem}
+    .history-item{display:grid; grid-template-columns:1fr auto; gap:.6rem; align-items:center; padding:.7rem; border-radius:12px; border:1px solid #163438; background:var(--card)}
+    .muted{opacity:.7}
+
+    footer{
+      padding:.7rem; text-align:center; font-size:.85rem; opacity:.7;
+      border-top:1px solid #0c2020; background:#0c1015;
+    }
+
+    .hint{font-size:.9rem; opacity:.8}
+    .center{display:flex; align-items:center; justify-content:center}
+  </style>
+</head>
+<body>
+  <header>
+    <img class="logo" src="assets/images/logoapp.png" alt="Walkie logo" />
+    <img class="logotext" src="assets/images/logotext.png" alt="Walkie" />
+    <div class="pill">
+      <img src="assets/images/dailygoal.png" alt="goal" />
+      <span id="dailyGoalLabel">Goal: 2.0 km</span>
+    </div>
+  </header>
+
+  <main>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="walk"><img src="assets/images/mapssection.png" alt="" />Passeggiata</button>
+      <button class="tab-btn" data-tab="health"><img src="assets/images/dogsection.png" alt="" />Salute</button>
+      <button class="tab-btn" data-tab="history"><img src="assets/images/trophy.png" alt="" />Storico</button>
+      <button class="tab-btn" data-tab="settings"><img src="assets/images/settings.png" alt="" />Impostazioni</button>
+    </nav>
+
+    <!-- WALK VIEW -->
+    <section id="view-walk" class="view active">
+      <div class="card">
+        <div id="map"></div>
+        <div class="walk-toolbar">
+          <button id="btnStart" class="btn primary"><img src="assets/images/startwalk.png" alt="start" />Start</button>
+          <button id="btnStop" class="btn stop" disabled><img src="assets/images/stopwalk.png" alt="stop" />Stop</button>
+          <button id="btnRecenter" class="btn"><img src="assets/images/position.png" alt="pos" />Centra</button>
+        </div>
+        <div class="metrics">
+          <div class="metric"><div class="k">Distanza</div><div id="mDistance" class="v">0.00 km</div></div>
+          <div class="metric"><div class="k">Durata</div><div id="mDuration" class="v">00:00</div></div>
+          <div class="metric"><div class="k">Velocità</div><div id="mPace" class="v">0.0 km/h</div></div>
+        </div>
+        <p class="hint">Suggerimento: avvia da esterno per una migliore precisione GPS.</p>
+      </div>
+      <div class="center" style="margin-top:10px;">
+        <img src="assets/images/walkingdog.png" alt="walking dog" style="height:56px; opacity:.9" />
+      </div>
+    </section>
+
+    <!-- HEALTH VIEW -->
+    <section id="view-health" class="view">
+      <div class="card">
+        <h3>Indice di Salute</h3>
+        <div class="form">
+          <div class="row">
+            <label>Età (anni)<br/><input type="number" id="age" min="0" step="0.1" value="4"></label>
+            <label>Peso (kg)<br/><input type="number" id="weight" min="0" step="0.1" value="18"></label>
+          </div>
+          <div class="row">
+            <label>Attività giornaliera (min)<br/><input type="number" id="mins" min="0" step="1" value="45"></label>
+            <label>BCS (1=magro, 9=obeso)<br/>
+              <select id="bcs">
+                <option value="3">3</option><option value="4">4</option>
+                <option value="5" selected>5</option>
+                <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label>Riposo notturno (ore)<br/><input type="number" id="sleep" min="0" max="18" step="0.5" value="12"></label>
+            <label>Battito a riposo (bpm)<br/><input type="number" id="hr" min="30" max="180" step="1" value="70"></label>
+          </div>
+          <button id="btnHealth" class="btn primary" style="width:max-content">Calcola punteggio</button>
+          <div id="healthOut" class="health-result" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY VIEW -->
+    <section id="view-history" class="view">
+      <div class="card">
+        <h3>Storico passeggiate</h3>
+        <div id="historyList" class="history-list"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section id="view-settings" class="view">
+      <div class="card">
+        <h3>Impostazioni</h3>
+        <label>Goal giornaliero (km)
+          <input type="number" id="goalKm" min="0" step="0.1" value="2.0" />
+        </label>
+        <p class="muted">Il goal viene salvato in locale e usato nella vista passeggiata.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>© Walkie — prototipo</footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
